@@ -1,5 +1,24 @@
 #include "keyframe.h"
 
+static inline builtin_interfaces::msg::Time stampFromDouble(double t)
+{
+    builtin_interfaces::msg::Time stamp;
+    stamp.sec = static_cast<int32_t>(t);
+    stamp.nanosec = static_cast<uint32_t>((t - static_cast<double>(stamp.sec)) * 1e9);
+    return stamp;
+}
+
+static void addField(sensor_msgs::msg::PointCloud2 &cloud, const std::string &name, int &offset)
+{
+    sensor_msgs::msg::PointField f;
+    f.name = name;
+    f.offset = offset;
+    f.datatype = sensor_msgs::msg::PointField::FLOAT32;
+    f.count = 1;
+    cloud.fields.push_back(f);
+    offset += sizeof(float);
+}
+
 template <typename Derived>
 static void reduceVector(vector<Derived> &v, vector<uchar> status)
 {
@@ -256,7 +275,9 @@ void KeyFrame::PnPRANSAC(const vector<cv::Point2f> &matched_2d_old_norm,
 }
 
 
-bool KeyFrame::findConnection(KeyFrame* old_kf)
+bool KeyFrame::findConnection(KeyFrame* old_kf,
+                              rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_match_img,
+                              rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_match_points)
 {
 	TicToc tmp_t;
 	//printf("find Connection\n");
@@ -461,9 +482,9 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	            	*/
 	            	cv::Mat thumbimage;
 	            	cv::resize(loop_match_img, thumbimage, cv::Size(loop_match_img.cols / 2, loop_match_img.rows / 2));
-	    	    	sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", thumbimage).toImageMsg();
-	                msg->header.stamp = ros::Time(time_stamp);
-	    	    	pub_match_img.publish(msg);
+	    	    	sensor_msgs::msg::Image::SharedPtr msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", thumbimage).toImageMsg();
+	                msg->header.stamp = stampFromDouble(time_stamp);
+	    	    	pub_match_img->publish(*msg);
 	            }
 	        }
 	    #endif
@@ -487,30 +508,51 @@ bool KeyFrame::findConnection(KeyFrame* old_kf)
 	    	             relative_yaw;
 	    	if(FAST_RELOCALIZATION)
 	    	{
-			    sensor_msgs::PointCloud msg_match_points;
-			    msg_match_points.header.stamp = ros::Time(time_stamp);
-			    for (int i = 0; i < (int)matched_2d_old_norm.size(); i++)
-			    {
-		            geometry_msgs::Point32 p;
-		            p.x = matched_2d_old_norm[i].x;
-		            p.y = matched_2d_old_norm[i].y;
-		            p.z = matched_id[i];
-		            msg_match_points.points.push_back(p);
-			    }
+			    sensor_msgs::msg::PointCloud2 msg_match_points;
+			    msg_match_points.header.stamp = stampFromDouble(time_stamp);
+			    msg_match_points.header.frame_id = "world";
+			    msg_match_points.height = 1;
+			    msg_match_points.width = matched_2d_old_norm.size();
+			    msg_match_points.is_bigendian = false;
+			    msg_match_points.is_dense = true;
+			    const int num_fields = 11;
+			    msg_match_points.point_step = num_fields * sizeof(float);
+			    msg_match_points.row_step = msg_match_points.point_step * msg_match_points.width;
+			    int off = 0;
+			    addField(msg_match_points, "u", off);
+			    addField(msg_match_points, "v", off);
+			    addField(msg_match_points, "p_id", off);
+			    addField(msg_match_points, "relo_t_x", off);
+			    addField(msg_match_points, "relo_t_y", off);
+			    addField(msg_match_points, "relo_t_z", off);
+			    addField(msg_match_points, "relo_q_w", off);
+			    addField(msg_match_points, "relo_q_x", off);
+			    addField(msg_match_points, "relo_q_y", off);
+			    addField(msg_match_points, "relo_q_z", off);
+			    addField(msg_match_points, "index", off);
+
 			    Eigen::Vector3d T = old_kf->T_w_i;
 			    Eigen::Matrix3d R = old_kf->R_w_i;
 			    Quaterniond Q(R);
-			    sensor_msgs::ChannelFloat32 t_q_index;
-			    t_q_index.values.push_back(T.x());
-			    t_q_index.values.push_back(T.y());
-			    t_q_index.values.push_back(T.z());
-			    t_q_index.values.push_back(Q.w());
-			    t_q_index.values.push_back(Q.x());
-			    t_q_index.values.push_back(Q.y());
-			    t_q_index.values.push_back(Q.z());
-			    t_q_index.values.push_back(index);
-			    msg_match_points.channels.push_back(t_q_index);
-			    pub_match_points.publish(msg_match_points);
+
+			    msg_match_points.data.resize(msg_match_points.width * msg_match_points.point_step);
+			    uint8_t *data_ptr = msg_match_points.data.data();
+			    for (int i = 0; i < (int)matched_2d_old_norm.size(); i++)
+			    {
+			        float *f = reinterpret_cast<float *>(data_ptr + i * msg_match_points.point_step);
+			        f[0] = static_cast<float>(matched_2d_old_norm[i].x);
+			        f[1] = static_cast<float>(matched_2d_old_norm[i].y);
+			        f[2] = static_cast<float>(matched_id[i]);
+			        f[3] = static_cast<float>(T.x());
+			        f[4] = static_cast<float>(T.y());
+			        f[5] = static_cast<float>(T.z());
+			        f[6] = static_cast<float>(Q.w());
+			        f[7] = static_cast<float>(Q.x());
+			        f[8] = static_cast<float>(Q.y());
+			        f[9] = static_cast<float>(Q.z());
+			        f[10] = static_cast<float>(index);
+			    }
+			    pub_match_points->publish(msg_match_points);
 	    	}
 	        return true;
 	    }

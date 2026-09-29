@@ -38,7 +38,9 @@ public:
 	KeyFrame(double _time_stamp, int _index, Vector3d &_vio_T_w_i, Matrix3d &_vio_R_w_i, Vector3d &_T_w_i, Matrix3d &_R_w_i,
 			 cv::Mat &_image, int _loop_index, Eigen::Matrix<double, 8, 1 > &_loop_info,
 			 vector<cv::KeyPoint> &_keypoints, vector<cv::KeyPoint> &_keypoints_norm, vector<BRIEF::bitset> &_brief_descriptors);
-	bool findConnection(KeyFrame* old_kf);
+	bool findConnection(KeyFrame* old_kf,
+	                    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_match_img,
+	                    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_match_points);
 	void computeWindowBRIEFPoint();
 	void computeBRIEFPoint();
 	//void extractBrief();
