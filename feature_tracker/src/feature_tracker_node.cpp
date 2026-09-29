@@ -52,12 +52,14 @@ class FeatureTrackerNode : public rclcpp::Node
         }
 
         sub_img_ = this->create_subscription<sensor_msgs::msg::Image>(
-            IMAGE_TOPIC, 100,
+            IMAGE_TOPIC, rclcpp::SensorDataQoS(),
             std::bind(&FeatureTrackerNode::img_callback, this, std::placeholders::_1));
 
-        pub_img_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("feature", 1000);
-        pub_match_ = this->create_publisher<sensor_msgs::msg::Image>("feature_img", 1000);
-        pub_restart_ = this->create_publisher<std_msgs::msg::Bool>("restart", 1000);
+        // ROS 1 used a private NodeHandle ("~"). Use ROS 2 private names
+        // explicitly so these resolve below /feature_tracker.
+        pub_img_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("~/feature", 1000);
+        pub_match_ = this->create_publisher<sensor_msgs::msg::Image>("~/feature_img", 1000);
+        pub_restart_ = this->create_publisher<std_msgs::msg::Bool>("~/restart", 1000);
     }
 
   private:

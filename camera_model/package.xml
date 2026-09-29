@@ -5,7 +5,7 @@
   <version>0.0.0</version>
   <description>The camera_model package (camodocal camera models library)</description>
   <maintainer email="dvorak@todo.todo">dvorak</maintainer>
-  <license>TODO</license>
+  <license>GPL-3.0-or-later</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

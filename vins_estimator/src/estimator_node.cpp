@@ -29,14 +29,21 @@ class EstimatorNode : public rclcpp::Node
   public:
     EstimatorNode()
         : Node("vins_estimator"),
+          visualization_(this),
           current_time_(-1.0),
           sum_of_wait_(0),
           latest_time_(0.0),
+          tmp_P_(Eigen::Vector3d::Zero()),
+          tmp_Q_(Eigen::Quaterniond::Identity()),
+          tmp_V_(Eigen::Vector3d::Zero()),
+          tmp_Ba_(Eigen::Vector3d::Zero()),
+          tmp_Bg_(Eigen::Vector3d::Zero()),
+          acc_0_(Eigen::Vector3d::Zero()),
+          gyr_0_(Eigen::Vector3d::Zero()),
           init_feature_(false),
           init_imu_(true),
           last_imu_t_(0.0),
-          running_(true),
-          visualization_(this)
+          running_(true)
     {
         this->declare_parameter<std::string>("config_file", "");
         readParameters(this);
@@ -49,7 +56,7 @@ class EstimatorNode : public rclcpp::Node
         visualization_.registerPub(this);
 
         sub_imu_ = this->create_subscription<sensor_msgs::msg::Imu>(
-            IMU_TOPIC, 2000,
+            IMU_TOPIC, rclcpp::SensorDataQoS(),
             std::bind(&EstimatorNode::imu_callback, this, std::placeholders::_1));
         sub_image_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
             "/feature_tracker/feature", 2000,
@@ -79,6 +86,14 @@ class EstimatorNode : public rclcpp::Node
         if (init_imu_)
         {
             latest_time_ = t;
+            acc_0_ = Eigen::Vector3d(
+                imu_msg->linear_acceleration.x,
+                imu_msg->linear_acceleration.y,
+                imu_msg->linear_acceleration.z);
+            gyr_0_ = Eigen::Vector3d(
+                imu_msg->angular_velocity.x,
+                imu_msg->angular_velocity.y,
+                imu_msg->angular_velocity.z);
             init_imu_ = false;
             return;
         }
@@ -222,8 +237,21 @@ class EstimatorNode : public rclcpp::Node
             estimator_.clearState();
             estimator_.setParameter();
             m_estimator_.unlock();
-            current_time_ = -1;
-            last_imu_t_ = 0;
+            {
+                std::lock_guard<std::mutex> state_lock(m_state_);
+                current_time_ = -1.0;
+                latest_time_ = 0.0;
+                last_imu_t_ = 0.0;
+                init_feature_ = false;
+                init_imu_ = true;
+                tmp_P_.setZero();
+                tmp_Q_.setIdentity();
+                tmp_V_.setZero();
+                tmp_Ba_.setZero();
+                tmp_Bg_.setZero();
+                acc_0_.setZero();
+                gyr_0_.setZero();
+            }
         }
         return;
     }

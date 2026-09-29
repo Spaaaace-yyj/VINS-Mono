@@ -1,254 +1,382 @@
-# VINS-Mono
-## A Robust and Versatile Monocular Visual-Inertial State Estimator
+# VINS-Mono ROS 2
 
-**11 Jan 2019**: An extension of **VINS**, which supports stereo cameras / stereo cameras + IMU / mono camera + IMU, is published at [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion)
+这是 [HKUST-Aerial-Robotics/VINS-Mono](https://github.com/HKUST-Aerial-Robotics/VINS-Mono)
+的 ROS 2 移植版本，目标平台为 Ubuntu 22.04 + ROS 2 Humble。VINS-Mono 是一个面向单目相机与
+IMU 的滑动窗口视觉惯性里程计，支持在线初始化、相机—IMU 外参估计、时间偏移估计、回环检测和
+4-DoF 位姿图优化。
 
-**29 Dec 2017**: New features: Add map merge, pose graph reuse, online temporal calibration function, and support rolling shutter camera. Map reuse videos: 
+> 本仓库仍处于移植和验证阶段。建议先完成 EuRoC 离线测试，再接入自己的 PX4 与工业相机。
+> 原始算法、论文与作者信息请参阅上游仓库；本仓库的修改主要集中在 ROS 2 节点、消息、QoS、
+> launch 和构建系统。
 
-<a href="https://www.youtube.com/embed/WDpH80nfZes" target="_blank"><img src="http://img.youtube.com/vi/WDpH80nfZes/0.jpg" 
-alt="cla" width="240" height="180" border="10" /></a>
-<a href="https://www.youtube.com/embed/eINyJHB34uU" target="_blank"><img src="http://img.youtube.com/vi/eINyJHB34uU/0.jpg" 
-alt="icra" width="240" height="180" border="10" /></a>
+## 1. 系统结构
 
-VINS-Mono is a real-time SLAM framework for **Monocular Visual-Inertial Systems**. It uses an optimization-based sliding window formulation for providing high-accuracy visual-inertial odometry. It features efficient IMU pre-integration with bias correction, automatic estimator initialization, online extrinsic calibration, failure detection and recovery, loop detection, and global pose graph optimization, map merge, pose graph reuse, online temporal calibration, rolling shutter support. VINS-Mono is primarily designed for state estimation and feedback control of autonomous drones, but it is also capable of providing accurate localization for AR applications. This code runs on **Linux**, and is fully integrated with **ROS**. For **iOS** mobile implementation, please go to [VINS-Mobile](https://github.com/HKUST-Aerial-Robotics/VINS-Mobile).
-
-**Authors:** [Tong Qin](http://www.qintonguav.com), [Peiliang Li](https://github.com/PeiliangLi), [Zhenfei Yang](https://github.com/dvorak0), and [Shaojie Shen](http://www.ece.ust.hk/ece.php/profile/facultydetail/eeshaojie) from the [HKUST Aerial Robotics Group](http://uav.ust.hk/)
-
-**Videos:**
-
-<a href="https://www.youtube.com/embed/mv_9snb_bKs" target="_blank"><img src="http://img.youtube.com/vi/mv_9snb_bKs/0.jpg" 
-alt="euroc" width="240" height="180" border="10" /></a>
-<a href="https://www.youtube.com/embed/g_wN0Nt0VAU" target="_blank"><img src="http://img.youtube.com/vi/g_wN0Nt0VAU/0.jpg" 
-alt="indoor_outdoor" width="240" height="180" border="10" /></a>
-<a href="https://www.youtube.com/embed/I4txdvGhT6I" target="_blank"><img src="http://img.youtube.com/vi/I4txdvGhT6I/0.jpg" 
-alt="AR_demo" width="240" height="180" border="10" /></a>
-
-EuRoC dataset;                  Indoor and outdoor performance;                         AR application;
-
-<a href="https://www.youtube.com/embed/2zE84HqT0es" target="_blank"><img src="http://img.youtube.com/vi/2zE84HqT0es/0.jpg" 
-alt="MAV platform" width="240" height="180" border="10" /></a>
-<a href="https://www.youtube.com/embed/CI01qbPWlYY" target="_blank"><img src="http://img.youtube.com/vi/CI01qbPWlYY/0.jpg" 
-alt="Mobile platform" width="240" height="180" border="10" /></a>
-
- MAV application;               Mobile implementation (Video link for mainland China friends: [Video1](http://www.bilibili.com/video/av10813254/) [Video2](http://www.bilibili.com/video/av10813205/) [Video3](http://www.bilibili.com/video/av10813089/) [Video4](http://www.bilibili.com/video/av10813325/) [Video5](http://www.bilibili.com/video/av10813030/))
-
-**Related Papers**
-
-* **Online Temporal Calibration for Monocular Visual-Inertial Systems**, Tong Qin, Shaojie Shen, IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS, 2018), **best student paper award** [pdf](https://ieeexplore.ieee.org/abstract/document/8593603)
-
-* **VINS-Mono: A Robust and Versatile Monocular Visual-Inertial State Estimator**, Tong Qin, Peiliang Li, Zhenfei Yang, Shaojie Shen, IEEE Transactions on Robotics[pdf](https://ieeexplore.ieee.org/document/8421746/?arnumber=8421746&source=authoralert) 
-
-*If you use VINS-Mono for your academic research, please cite at least one of our related papers.*[bib](https://github.com/HKUST-Aerial-Robotics/VINS-Mono/blob/master/support_files/paper_bib.txt)
-
-## 1. Prerequisites (ROS2 Humble)
-
-1.1 **Ubuntu** and **ROS2**
-This branch has been ported to **ROS2 Humble** on **Ubuntu 22.04 (Jammy)**. Install ROS2 Humble following the [official guide](https://docs.ros.org/en/humble/Installation.html). All nodes are written in ROS2 object-oriented style (`rclcpp::Node` subclasses); the SLAM/VIO algorithms are unchanged.
-
-Additional ROS2 packages (normally included with `ros-humble-desktop`):
-```
-    sudo apt-get install ros-humble-cv-bridge ros-humble-tf2 ros-humble-tf2-ros \
-                         ros-humble-visualization-msgs ros-humble-rviz2
+```text
+sensor_msgs/Image ──> feature_tracker ──> /feature_tracker/feature ──┐
+                                                                    ├─> vins_estimator
+sensor_msgs/Imu ─────────────────────────────────────────────────────┘        │
+                                                                              ├─> /vins_estimator/odometry
+                                                                              └─> keyframe data
+                                                                                       │
+                                                                                       v
+                                                                                  pose_graph
+                                                                                       │
+                                                                                       └─> /pose_graph/match_points
 ```
 
-1.2. **Ceres Solver**
+主要包：
+
+| 包 | 用途 |
+| --- | --- |
+| `camera_model` | PINHOLE、MEI 等相机模型与标定工具 |
+| `feature_tracker` | KLT 光流前端，生成带像素坐标和速度的特征消息 |
+| `vins_estimator` | IMU 预积分、初始化、滑动窗口非线性优化与边缘化 |
+| `pose_graph` | DBoW2 回环检测和 4-DoF 位姿图优化 |
+| `benchmark_publisher` | EuRoC 真值轨迹可视化 |
+| `data_generator` | 合成 IMU/特征数据，用于基础联调 |
+| `ar_demo` | AR 叠加演示 |
+
+节点内部输出使用 ROS 2 私有话题名 `~/...`，因此默认节点名下的话题为
+`/feature_tracker/*`、`/vins_estimator/*` 和 `/pose_graph/*`。不要再给这三个节点额外设置同名
+namespace，否则会得到重复路径，例如 `/vins_estimator/vins_estimator/odometry`。
+
+## 2. 环境与编译
+
+推荐环境：
+
+- Ubuntu 22.04
+- ROS 2 Humble Desktop
+- OpenCV 4、Eigen 3、Ceres 2.x
+- `colcon` 与 `rosdep`
+
+```bash
+sudo apt update
+sudo apt install -y \
+  ros-humble-desktop ros-dev-tools \
+  ros-humble-cv-bridge ros-humble-tf2 ros-humble-tf2-ros \
+  ros-humble-visualization-msgs ros-humble-rviz2 \
+  libopencv-dev libeigen3-dev libceres-dev
+
+mkdir -p ~/vins_ws/src
+cd ~/vins_ws/src
+git clone https://github.com/Spaaaace-yyj/VINS-Mono.git
+
+cd ~/vins_ws
+source /opt/ros/humble/setup.bash
+rosdep install --from-paths src --ignore-src -r -y
+colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+source install/setup.bash
 ```
-    sudo apt-get install libceres-dev
+
+每次打开新终端都需要执行：
+
+```bash
+source /opt/ros/humble/setup.bash
+source ~/vins_ws/install/setup.bash
 ```
-The code compiles against **Ceres 2.0.0** (Ubuntu 22.04 default). Deprecation warnings about `LocalParameterization` are harmless.
 
-1.3. **OpenCV / Eigen**
+## 3. 先做基础检查
+
+不接真实设备时可以运行合成数据测试。该测试绕过 `feature_tracker`，直接向估计器发送合成特征，
+主要用于检查节点、消息格式与优化器是否能启动，不等同于真实视觉惯性测试。
+
+```bash
+ros2 launch vins_estimator simulation.launch.py
 ```
-    sudo apt-get install libopencv-dev libeigen3-dev
+
+如果运行环境没有桌面，`data_generator` 中的 OpenCV 窗口可能无法打开，此时优先使用 EuRoC bag
+测试。
+
+## 4. EuRoC 离线测试
+
+### 4.1 准备 rosbag2
+
+下载 [EuRoC MAV Dataset](https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets)。
+若下载的是 ROS 1 `.bag`，可用 `rosbags` 转成 rosbag2：
+
+```bash
+python3 -m pip install rosbags
+rosbags-convert MH_01_easy.bag --dst MH_01_easy_ros2
+ros2 bag info MH_01_easy_ros2
 ```
 
-## 2. Build VINS-Mono with colcon
+默认 EuRoC 配置订阅：
+
+- 图像：`/cam0/image_raw`
+- IMU：`/imu0`
+
+如果 bag 内话题名不同，复制 `config/euroc/euroc_config.yaml`，修改 `image_topic` 和
+`imu_topic`，不要直接反复修改仓库内的基准配置。
+
+### 4.2 先关闭回环和 RViz2
+
+终端 1：
+
+```bash
+ros2 launch vins_estimator vins.launch.py \
+  use_pose_graph:=false \
+  use_rviz:=false \
+  use_sim_time:=true
 ```
-    mkdir -p ~/vins_ws/src
-    cd ~/vins_ws/src
-    git clone https://github.com/HKUST-Aerial-Robotics/VINS-Mono.git
-    cd ~/vins_ws
-    colcon build --symlink-install
-    source install/setup.bash
+
+终端 2：
+
+```bash
+ros2 bag play MH_01_easy_ros2 --clock
 ```
-The workspace contains 7 packages: `camera_model`, `feature_tracker`, `vins_estimator`, `pose_graph`, `benchmark_publisher`, `data_generator`, `ar_demo`.
 
-## 3. Visual-Inertial Odometry and Pose Graph Reuse on Public Datasets
-Download [EuRoC MAV Dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets). Although it contains stereo cameras, we only use one camera. The system also works with the [ETH-asl cla dataset](http://robotics.ethz.ch/~asl-datasets/maplab/multi_session_mapping_CLA/bags/). We take EuRoC as the example.
+终端 3：
 
-**3.1 Visual-inertial odometry and loop closure**
-
-Open two terminals: one launches the full pipeline (feature tracker + estimator + pose graph + RViz2), the other plays the bag.
+```bash
+ros2 topic hz /feature_tracker/feature
+ros2 topic hz /vins_estimator/odometry
+ros2 topic echo /vins_estimator/odometry --once
+ros2 run tf2_ros tf2_echo world body
 ```
-    ros2 launch vins_estimator vins.launch.py
-    ros2 bag play YOUR_PATH_TO_DATASET/MH_01_easy
+
+VIO 正常后再打开回环和 RViz2：
+
+```bash
+ros2 launch vins_estimator vins.launch.py \
+  use_pose_graph:=true \
+  use_rviz:=true \
+  use_sim_time:=true
 ```
-Notes:
-- `vins.launch.py` defaults to the EuRoC config. Use another config with:
-  `ros2 launch vins_estimator vins.launch.py config_file:=/abs/path/to/config.yaml`
-- Add `use_rviz:=false` to skip RViz2.
-- `image_topic` and `imu_topic` are read from the config file (`config/euroc/euroc_config.yaml`).
 
-**3.2 (Optional) Visualize ground truth**
+launch 参数：
 
-The `benchmark_publisher` visualizes ground truth (naive alignment, for visualization only, not for quantitative comparison):
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `config_file` | EuRoC 配置 | VINS YAML 的绝对路径 |
+| `vins_folder` | 安装后的包目录 | 查找鱼眼 mask 等资源 |
+| `use_pose_graph` | `true` | 是否启动回环节点 |
+| `use_rviz` | `true` | 是否启动 RViz2 |
+| `use_sim_time` | `false` | 播放带 `--clock` 的 bag 时设为 `true` |
+
+## 5. 接入自己的相机和 IMU
+
+建议的数据链路：
+
+```text
+工业相机驱动 ── sensor_msgs/msg/Image ──> /camera/image_raw ──> feature_tracker
+
+PX4 /fmu/out/sensor_combined
+        └─> px4_vins_bridge ── sensor_msgs/msg/Imu ──> /px4/imu ──> vins_estimator
 ```
-    ros2 run benchmark_publisher benchmark_publisher --ros-args -p data_name:=/abs/path/ground_truth.csv
+
+不要自己生成 `/feature_tracker/feature`。真实设备中应由 `feature_tracker` 根据原始图像生成该消息。
+
+### 5.1 图像要求
+
+- 消息类型为 `sensor_msgs/msg/Image`。
+- 推荐 `mono8`；`bgr8`/`rgb8` 会由 `cv_bridge` 转灰度。
+- `header.stamp` 必须是曝光/采样时刻，不能是回调完成时刻。
+- YAML 中 `image_width`、`image_height` 必须与实际图像一致。
+- 建议全局快门，首次测试 20–30 Hz。
+- 相机标定从 VINS YAML 读取；当前节点不读取 `CameraInfo`。
+
+原始相机订阅使用 `rclcpp::SensorDataQoS()`，可兼容常见相机驱动的 Best Effort 发布端。
+
+### 5.2 PX4 `SensorCombined` 转 `sensor_msgs/Imu`
+
+PX4 的 `gyro_rad` 单位已经是 rad/s，`accelerometer_m_s2` 单位已经是 m/s²。PX4 机体系通常为
+FRD（前、右、下），而 ROS 机体系通常采用 FLU（前、左、上）。只做轴变换时：
+
+```cpp
+imu.angular_velocity.x =  msg.gyro_rad[0];
+imu.angular_velocity.y = -msg.gyro_rad[1];
+imu.angular_velocity.z = -msg.gyro_rad[2];
+
+imu.linear_acceleration.x =  msg.accelerometer_m_s2[0];
+imu.linear_acceleration.y = -msg.accelerometer_m_s2[1];
+imu.linear_acceleration.z = -msg.accelerometer_m_s2[2];
+
+// SensorCombined 不提供姿态；告诉消费者 orientation 无效。
+imu.orientation_covariance[0] = -1.0;
 ```
-(Green line = VINS result, red line = ground truth.)
 
-**3.3 (Optional) Without extrinsic parameters**
+水平静止时，转换后的加速度应大致为 `[0, 0, +9.8]` m/s²，模长约为 9.8。不要再乘重力常数，
+也不要把角速度从度每秒重复转换为弧度每秒。
 
-Set `estimate_extrinsic: 2` in the config file and rotate the device for a few seconds at startup; camera-IMU extrinsic is calibrated online.
+时间戳是接入中最重要的部分：PX4 的 `timestamp` 是飞控启动后的微秒计时，相机往往使用 ROS 系统
+时间或硬件时钟，两者不能直接比较。正式使用时必须把 PX4 采样时刻映射到与相机相同的 ROS 时基：
 
-**3.4 Map merge**
-
-After playing MH_01, continue playing MH_02, MH_03 ... The system merges them by loop closure.
-
-**3.5 Map reuse**
-
-- **Save**: set `pose_graph_save_path` in the config file, play a bag, then press `s` + `enter` in the `pose_graph` terminal. The current pose graph is saved.
-- **Load**: set `load_previous_pose_graph: 1` before running. New sequences are aligned to the previous pose graph.
-
-## 4. AR Demo
-4.1 Download the [bag file](https://www.dropbox.com/s/s29oygyhwmllw9k/ar_box.bag?dl=0), which is collected from HKUST Robotic Institute. For friends in mainland China, download from [bag file](https://pan.baidu.com/s/1geEyHNl).
-
-4.2 Run the VINS pipeline (using the `3dm` MEI-camera config), the AR node, then play the bag.
+```text
+t_ros = t_px4 + clock_offset
 ```
-    ros2 launch vins_estimator vins.launch.py config_file:=$VINS_WS/install/vins_estimator/share/vins_estimator/config/3dm/3dm_config.yaml use_rviz:=false
-    ros2 launch ar_demo ar_demo.launch.py config_file:=$VINS_WS/install/vins_estimator/share/vins_estimator/config/3dm/3dm_config.yaml image_topic:=/mv_25001498/image_raw
-    ros2 bag play YOUR_PATH_TO_DATASET/ar_box
+
+其中 `clock_offset` 来自稳定的时间同步机制，并且输出时间戳必须严格单调。仅做连通性测试时可临时把
+`imu.header.stamp` 设为桥接节点的 `now()`，但这会引入 DDS/USB 传输抖动，不适合作为最终 VIO
+方案。`estimate_td: 1` 只能补偿近似固定的相机—IMU偏移，不能修复变化的传输延迟。
+
+### 5.3 自定义配置模板
+
+先复制一份最接近相机模型的 YAML：
+
+```bash
+cp ~/vins_ws/src/VINS-Mono/config/euroc/euroc_config.yaml \
+   ~/vins_ws/src/VINS-Mono/config/my_sensor.yaml
 ```
-We put one 0.8m x 0.8m x 0.8m virtual box in front of your view.
 
-## 5. Run with your device 
+至少检查以下字段：
 
-Suppose you are familiar with ROS and you can get a camera and an IMU with raw metric measurements in ROS topic, you can follow these steps to set up your device. For beginners, we highly recommend you to first try out [VINS-Mobile](https://github.com/HKUST-Aerial-Robotics/VINS-Mobile) if you have iOS devices since you don't need to set up anything.
+```yaml
+imu_topic: "/px4/imu"
+image_topic: "/camera/image_raw"
+output_path: "/home/YOUR_USER/vins_output/"  # 必须是存在或可创建的绝对路径
 
-5.1 Change to your topic name in the config file. The image should exceed 20Hz and IMU should exceed 100Hz. Both image and IMU should have the accurate time stamp. IMU should contain absolute acceleration values including gravity.
+model_type: PINHOLE
+camera_name: industrial_camera
+image_width: 1280       # 改为实际值
+image_height: 1024      # 改为实际值
 
-5.2 Camera calibration:
+# 使用真实标定值，下面只是字段示意
+distortion_parameters:
+   k1: 0.0
+   k2: 0.0
+   p1: 0.0
+   p2: 0.0
+projection_parameters:
+   fx: 600.0
+   fy: 600.0
+   cx: 640.0
+   cy: 512.0
 
-We support the [pinhole model](http://docs.opencv.org/2.4.8/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html) and the [MEI model](http://www.robots.ox.ac.uk/~cmei/articles/single_viewpoint_calib_mei_07.pdf). You can calibrate your camera with any tools you like. Just write the parameters in the config file in the right format. If you use rolling shutter camera, please carefully calibrate your camera, making sure the reprojection error is less than 0.5 pixel.
+estimate_extrinsic: 2   # 仅用于首次联调；稳定运行建议使用离线标定结果
 
-5.3 **Camera-Imu extrinsic parameters**:
+max_cnt: 150
+min_dist: 30
+freq: 20
+F_threshold: 1.0
+show_track: 1
+equalize: 1
+fisheye: 0
 
-If you have seen the config files for EuRoC and AR demos, you can find that we can estimate and refine them online. If you familiar with transformation, you can figure out the rotation and position by your eyes or via hand measurements. Then write these values into config as the initial guess. Our estimator will refine extrinsic parameters online. If you don't know anything about the camera-IMU transformation, just ignore the extrinsic parameters and set the **estimate_extrinsic** to **2**, and rotate your device set at the beginning for a few seconds. When the system works successfully, we will save the calibration result. you can use these result as initial values for next time. An example of how to set the extrinsic parameters is in[extrinsic_parameter_example](https://github.com/HKUST-Aerial-Robotics/VINS-Mono/blob/master/config/extrinsic_parameter_example.pdf)
+max_solver_time: 0.04   # 单位是秒，不是毫秒
+max_num_iterations: 8
+keyframe_parallax: 10.0
 
-5.4 **Temporal calibration**:
-Most self-made visual-inertial sensor sets are unsynchronized. You can set **estimate_td** to 1 to online estimate the time offset between your camera and IMU.  
+# 以下只是联调初值，最终应使用实际 IMU 的 Allan 方差结果
+acc_n: 0.2
+gyr_n: 0.02
+acc_w: 0.002
+gyr_w: 4.0e-5
+g_norm: 9.81
 
-5.5 **Rolling shutter**:
-For rolling shutter camera (carefully calibrated, reprojection error under 0.5 pixel), set **rolling_shutter** to 1. Also, you should set rolling shutter readout time **rolling_shutter_tr**, which is from sensor datasheet(usually 0-0.05s, not exposure time). Don't try web camera, the web camera is so awful.
+loop_closure: 0
+load_previous_pose_graph: 0
+fast_relocalization: 0
+pose_graph_save_path: "/home/YOUR_USER/vins_output/pose_graph/"
 
-5.6 Other parameter settings: Details are included in the config file.
+estimate_td: 1
+td: 0.0
+rolling_shutter: 0
+rolling_shutter_tr: 0.0
 
-5.7 Performance on different devices: 
-
-(global shutter camera + synchronized high-end IMU, e.g. VI-Sensor) > (global shutter camera + synchronized low-end IMU) > (global camera + unsync high frequency IMU) > (global camera + unsync low frequency IMU) > (rolling camera + unsync low frequency IMU). 
-
-## 6. Node / Topic / Parameter Interface
-
-### 6.1 Nodes
-
-| Node | Package | Executable | Description |
-|------|---------|------------|-------------|
-| `feature_tracker` | feature_tracker | feature_tracker | KLT optical-flow frontend |
-| `vins_estimator` | vins_estimator | vins_estimator | Sliding-window VIO backend |
-| `pose_graph` | pose_graph | pose_graph | Loop closure + 4-DoF pose graph |
-| `ar_demo` | ar_demo | ar_demo_node | Augmented-reality object rendering |
-| `benchmark_publisher` | benchmark_publisher | benchmark_publisher | Ground-truth publisher (visualization only) |
-| `data_generator` | data_generator | data_generator | Synthetic IMU/camera data generator |
-| `Calibration` | camera_model | Calibration | Camera intrinsic calibration tool |
-
-### 6.2 Topics
-
-**feature_tracker**
-| Topic | Type | Direction | Description |
-|-------|------|-----------|-------------|
-| `image_topic` (from config) | sensor_msgs/msg/Image | sub | Raw camera image |
-| `/feature_tracker/feature` | sensor_msgs/msg/PointCloud2 | pub | Tracked features (8 float fields: x, y, z, id, u, v, velocity_x, velocity_y) |
-| `/feature_tracker/feature_img` | sensor_msgs/msg/Image | pub | Debug image with feature markers |
-| `/feature_tracker/restart` | std_msgs/msg/Bool | pub | Frontend reset signal |
-
-**vins_estimator**
-| Topic | Type | Direction | Description |
-|-------|------|-----------|-------------|
-| `imu_topic` (from config) | sensor_msgs/msg/Imu | sub | Raw IMU |
-| `/feature_tracker/feature` | sensor_msgs/msg/PointCloud2 | sub | Features |
-| `/feature_tracker/restart` | std_msgs/msg/Bool | sub | Reset |
-| `/pose_graph/match_points` | sensor_msgs/msg/PointCloud2 | sub | Loop-closure match points (11 floats/point) |
-| `/vins_estimator/odometry` | nav_msgs/msg/Odometry | pub | VIO odometry (consumed by pose_graph) |
-| `/vins_estimator/imu_propagate` | nav_msgs/msg/Odometry | pub | IMU-propagated odometry |
-| `/vins_estimator/path` | nav_msgs/msg/Path | pub | Optimized trajectory |
-| `/vins_estimator/relocalization_path` | nav_msgs/msg/Path | pub | Relocalized path |
-| `/vins_estimator/point_cloud` | sensor_msgs/msg/PointCloud2 | pub | 3D map points |
-| `/vins_estimator/history_cloud` | sensor_msgs/msg/PointCloud2 | pub | Marginalized point cloud |
-| `/vins_estimator/key_poses` | visualization_msgs/msg/Marker | pub | Keyframe poses (4-DoF graph) |
-| `/vins_estimator/camera_pose` | nav_msgs/msg/Odometry | pub | Current camera pose |
-| `/vins_estimator/camera_pose_visual` | visualization_msgs/msg/MarkerArray | pub | Camera pose markers |
-| `/vins_estimator/keyframe_pose` | nav_msgs/msg/Odometry | pub | Keyframe pose |
-| `/vins_estimator/keyframe_point` | sensor_msgs/msg/PointCloud2 | pub | Keyframe features (8 fields) |
-| `/vins_estimator/extrinsic` | nav_msgs/msg/Odometry | pub | Estimated camera-IMU extrinsic |
-| `/vins_estimator/relo_relative_pose` | nav_msgs/msg/Odometry | pub | Relocalization relative pose |
-| `/tf` (world→body) | tf2_msgs/msg/TFMessage | pub | Body transform |
-
-**pose_graph**
-| Topic | Type | Direction | Description |
-|-------|------|-----------|-------------|
-| `/vins_estimator/imu_propagate` | nav_msgs/msg/Odometry | sub | IMU odometry |
-| `/vins_estimator/odometry` | nav_msgs/msg/Odometry | sub | VIO odometry |
-| `image_topic` (from config) | sensor_msgs/msg/Image | sub | Keyframe image for loop detection |
-| `/vins_estimator/keyframe_pose` | nav_msgs/msg/Odometry | sub | Keyframe pose |
-| `/vins_estimator/extrinsic` | nav_msgs/msg/Odometry | sub | Extrinsic |
-| `/vins_estimator/keyframe_point` | sensor_msgs/msg/PointCloud2 | sub | Keyframe points |
-| `/vins_estimator/relo_relative_pose` | nav_msgs/msg/Odometry | sub | Relo relative pose |
-| `/pose_graph/match_image` | sensor_msgs/msg/Image | pub | Loop-match visualization |
-| `/pose_graph/match_points` | sensor_msgs/msg/PointCloud2 | pub | Loop-match points (11 floats/point) |
-| `/pose_graph/camera_pose_visual` | visualization_msgs/msg/MarkerArray | pub | Camera pose markers |
-| `/pose_graph/key_odometrys` | visualization_msgs/msg/Marker | pub | Keyframe odometry markers |
-| `/pose_graph/no_loop_path` | nav_msgs/msg/Path | pub | Path before pose-graph optimization |
-
-### 6.3 Parameters
-
-| Node | Parameter | Type | Default | Description |
-|------|-----------|------|---------|-------------|
-| feature_tracker | `config_file` | string | — | Path to VINS config YAML |
-| feature_tracker | `vins_folder` | string | — | Root folder used to locate `config/fisheye_mask.jpg` |
-| vins_estimator | `config_file` | string | — | Path to VINS config YAML |
-| pose_graph | `config_file` | string | — | Path to VINS config YAML |
-| pose_graph | `visualization_shift_x` | double | 0.0 | x offset of pose-graph visualization |
-| pose_graph | `visualization_shift_y` | double | 0.0 | y offset of pose-graph visualization |
-| pose_graph | `skip_cnt` | int | 0 | Keyframe skip count |
-| pose_graph | `skip_dis` | double | 0.0 | Keyframe skip distance (m) |
-| ar_demo | `calib_file` | string | — | Camera calibration YAML (VINS config) |
-| ar_demo | `use_undistored_img` | bool | false | Subscribe to `image_undistored` instead of `image_raw` |
-| benchmark_publisher | `data_name` | string | — | Path to ground-truth CSV |
-
-### 6.4 Launch files
-
-| Launch file | Package | Description |
-|-------------|---------|-------------|
-| `vins.launch.py` | vins_estimator | Full pipeline (feature_tracker + vins_estimator + pose_graph + rviz2). Args: `config_file`, `vins_folder`, `use_rviz` |
-| `ar_demo.launch.py` | ar_demo | AR rendering node. Args: `config_file`, `image_topic` |
-
-## 7. Docker Support
-
-To further facilitate the building process, we add docker in our code. Docker environment is like a sandbox, thus makes our code environment-independent. To run with docker, first make sure [ros](http://wiki.ros.org/ROS/Installation) and [docker](https://docs.docker.com/install/linux/docker-ce/ubuntu/) are installed on your machine. Then add your account to `docker` group by `sudo usermod -aG docker $YOUR_USER_NAME`. **Relaunch the terminal or logout and re-login if you get `Permission denied` error**, type:
+save_image: 0
+visualize_imu_forward: 0
+visualize_camera_size: 0.4
 ```
-cd ~/catkin_ws/src/VINS-Mono/docker
-make build
-./run.sh LAUNCH_FILE_NAME   # ./run.sh euroc.launch
+
+YAML 不会自动展开 `$HOME` 或 `~`，请填写绝对路径。
+
+### 5.4 外参约定
+
+配置中的外参是“相机坐标到 IMU 坐标”的变换：
+
+```text
+p_I = R_IC * p_C + t_IC
 ```
-Note that the docker building process may take a while depends on your network and machine. After VINS-Mono successfully started, open another terminal and play your bag file, then you should be able to see the result. If you need modify the code, simply run `./run.sh LAUNCH_FILE_NAME` after your changes.
 
+如果标定工具给出的是 `T_CI`，需要先求逆：
 
-## 8. Acknowledgements
-We use [ceres solver](http://ceres-solver.org/) for non-linear optimization and [DBoW2](https://github.com/dorian3d/DBoW2) for loop detection, and a generic [camera model](https://github.com/hengli/camodocal).
+```text
+R_IC = R_CI^T
+t_IC = -R_CI^T * t_CI
+```
 
-## 9. Licence
-The source code is released under [GPLv3](http://www.gnu.org/licenses/) license.
+外参中的 IMU 坐标系必须对应经过 FRD→FLU 转换后的 IMU 消息坐标系。初次使用
+`estimate_extrinsic: 2` 时，应在启动阶段做充分的多轴旋转；获得稳定结果后建议用 Kalibr 等工具做
+离线标定，并改为 `estimate_extrinsic: 0` 或 `1`。
 
-We are still working on improving the code reliability. For any technical issues, please contact Tong QIN <tong.qinATconnect.ust.hk> or Peiliang LI <pliapATconnect.ust.hk>.
+## 6. 推荐测试顺序
 
-For commercial inquiries, please contact Shaojie SHEN <eeshaojieATust.hk>
+1. EuRoC：只启用 `feature_tracker + vins_estimator`，确认算法主链路。
+2. 相机单测：确认频率、编码、分辨率和曝光时间戳。
+3. PX4 桥接单测：确认单位、FRD→FLU、静止重力方向和时间戳。
+4. 录制自己的 rosbag2，先离线回放和调参。
+5. 实时 VIO 稳定后再启用回环。
+
+```bash
+ros2 topic hz /camera/image_raw
+ros2 topic hz /px4/imu
+ros2 topic info -v /camera/image_raw
+ros2 topic info -v /px4/imu
+ros2 topic echo /px4/imu --once
+
+ros2 bag record /camera/image_raw /px4/imu
+```
+
+建议验收条件：
+
+- 相机稳定大于 20 Hz，IMU 接近或高于 200 Hz。
+- 静止时角速度接近 0，加速度模长约 9.8 m/s²。
+- 水平静止且使用 FLU 时，加速度 z 约为 +9.8 m/s²。
+- 两路时间戳同一时基、严格单调，相机—IMU延迟基本恒定。
+- `/feature_tracker/feature` 与 `/vins_estimator/odometry` 持续输出。
+
+## 7. 主要话题
+
+| 节点 | 方向 | 话题 | 类型 |
+| --- | --- | --- | --- |
+| `feature_tracker` | 订阅 | YAML 的 `image_topic` | `sensor_msgs/msg/Image` |
+| `feature_tracker` | 发布 | `/feature_tracker/feature` | `sensor_msgs/msg/PointCloud2` |
+| `feature_tracker` | 发布 | `/feature_tracker/feature_img` | `sensor_msgs/msg/Image` |
+| `feature_tracker` | 发布 | `/feature_tracker/restart` | `std_msgs/msg/Bool` |
+| `vins_estimator` | 订阅 | YAML 的 `imu_topic` | `sensor_msgs/msg/Imu` |
+| `vins_estimator` | 发布 | `/vins_estimator/odometry` | `nav_msgs/msg/Odometry` |
+| `vins_estimator` | 发布 | `/vins_estimator/imu_propagate` | `nav_msgs/msg/Odometry` |
+| `vins_estimator` | 发布 | `/vins_estimator/path` | `nav_msgs/msg/Path` |
+| `vins_estimator` | 发布 | `/vins_estimator/point_cloud` | `sensor_msgs/msg/PointCloud2` |
+| `pose_graph` | 发布 | `/pose_graph/pose_graph_path` | `nav_msgs/msg/Path` |
+| `pose_graph` | 发布 | `/pose_graph/match_points` | `sensor_msgs/msg/PointCloud2` |
+
+外部相机与 IMU 订阅使用 Sensor Data QoS（Best Effort、较小队列）。节点内部特征、里程计和回环消息
+保持 Reliable。若没有数据，请首先用 `ros2 topic info -v TOPIC` 对比发布端与订阅端 QoS。
+
+## 8. 常见问题
+
+### 有图像但没有特征
+
+检查 `image_topic`、图像编码、分辨率与时间戳；再查看 `/feature_tracker/feature_img`。如果相机发布
+Best Effort，本仓库已使用 Sensor Data QoS 与其兼容。
+
+### 有特征但没有里程计
+
+检查 IMU 是否到达、时间戳是否与图像同一时基、静止重力方向是否正确。VINS 初始化需要足够的平移
+和多轴转动；纯旋转或长时间静止可能无法初始化。
+
+### 回放旧 bag 时 RViz2 没有内容
+
+launch 使用 `use_sim_time:=true`，同时 `ros2 bag play ... --clock`。RViz2 的 Fixed Frame 应为
+`world`。
+
+### 输出文件写不出来
+
+`output_path` 和 `pose_graph_save_path` 必须是当前用户可写的绝对路径。仓库的 EuRoC 默认路径是
+`/tmp/vins_output/`；正式实验请改到持久目录。
+
+### 只想测试 VIO，不想加载 DBoW2
+
+```bash
+ros2 launch vins_estimator vins.launch.py use_pose_graph:=false
+```
+
+## 9. 致谢与许可
+
+原始 VINS-Mono 作者为 Tong Qin、Peiliang Li、Zhenfei Yang 和 Shaojie Shen（HKUST Aerial
+Robotics Group）。项目使用 Ceres Solver、DBoW2 和 camodocal。若用于学术研究，请引用原始
+[VINS-Mono 论文](https://ieeexplore.ieee.org/document/8421746)；BibTeX 位于
+[`support_files/paper_bib.txt`](support_files/paper_bib.txt)。
+
+本项目遵循 [GPLv3](LICENCE) 许可。

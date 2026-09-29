@@ -32,8 +32,8 @@ using namespace std;
 
 // Globals declared extern in parameters.h (shared with algorithm files)
 camodocal::CameraPtr m_camera;
-Eigen::Vector3d tic;
-Eigen::Matrix3d qic;
+Eigen::Vector3d tic = Eigen::Vector3d::Zero();
+Eigen::Matrix3d qic = Eigen::Matrix3d::Identity();
 int VISUALIZATION_SHIFT_X;
 int VISUALIZATION_SHIFT_Y;
 std::string BRIEF_PATTERN_FILE;
@@ -42,7 +42,7 @@ int ROW;
 int COL;
 std::string VINS_RESULT_PATH;
 int DEBUG_IMAGE;
-int FAST_RELOCALIZATION;
+int FAST_RELOCALIZATION = 0;
 
 static inline double stampToSec(const builtin_interfaces::msg::Time &t)
 {
@@ -70,7 +70,11 @@ public:
           skip_first_cnt_(0),
           skip_cnt_(0),
           load_flag_(0),
-          start_flag_(0)
+          start_flag_(0),
+          SKIP_CNT_(0),
+          LOOP_CLOSURE_(0),
+          VISUALIZE_IMU_FORWARD_(0),
+          SKIP_DIS_(0.0)
     {
         posegraph_.registerPub(this);
 
@@ -146,25 +150,31 @@ public:
         sub_vio_ = this->create_subscription<nav_msgs::msg::Odometry>(
             "/vins_estimator/odometry", 2000,
             std::bind(&PoseGraphNode::vio_callback, this, std::placeholders::_1));
-        sub_image_ = this->create_subscription<sensor_msgs::msg::Image>(
-            IMAGE_TOPIC, 2000,
-            std::bind(&PoseGraphNode::image_callback, this, std::placeholders::_1));
-        sub_pose_ = this->create_subscription<nav_msgs::msg::Odometry>(
-            "/vins_estimator/keyframe_pose", 2000,
-            std::bind(&PoseGraphNode::pose_callback, this, std::placeholders::_1));
         sub_extrinsic_ = this->create_subscription<nav_msgs::msg::Odometry>(
             "/vins_estimator/extrinsic", 2000,
             std::bind(&PoseGraphNode::extrinsic_callback, this, std::placeholders::_1));
-        sub_point_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            "/vins_estimator/keyframe_point", 2000,
-            std::bind(&PoseGraphNode::point_callback, this, std::placeholders::_1));
-        sub_relo_relative_pose_ = this->create_subscription<nav_msgs::msg::Odometry>(
-            "/vins_estimator/relo_relative_pose", 2000,
-            std::bind(&PoseGraphNode::relo_relative_pose_callback, this, std::placeholders::_1));
 
-        pub_camera_pose_visual_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("camera_pose_visual", 1000);
-        pub_key_odometrys_ = this->create_publisher<visualization_msgs::msg::Marker>("key_odometrys", 1000);
-        pub_vio_path_ = this->create_publisher<nav_msgs::msg::Path>("no_loop_path", 1000);
+        // The following streams are only meaningful when loop closure is enabled.
+        // In particular, IMAGE_TOPIC is intentionally not read when it is disabled.
+        if (LOOP_CLOSURE_)
+        {
+            sub_image_ = this->create_subscription<sensor_msgs::msg::Image>(
+                IMAGE_TOPIC, rclcpp::SensorDataQoS(),
+                std::bind(&PoseGraphNode::image_callback, this, std::placeholders::_1));
+            sub_pose_ = this->create_subscription<nav_msgs::msg::Odometry>(
+                "/vins_estimator/keyframe_pose", 2000,
+                std::bind(&PoseGraphNode::pose_callback, this, std::placeholders::_1));
+            sub_point_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+                "/vins_estimator/keyframe_point", 2000,
+                std::bind(&PoseGraphNode::point_callback, this, std::placeholders::_1));
+            sub_relo_relative_pose_ = this->create_subscription<nav_msgs::msg::Odometry>(
+                "/vins_estimator/relo_relative_pose", 2000,
+                std::bind(&PoseGraphNode::relo_relative_pose_callback, this, std::placeholders::_1));
+        }
+
+        pub_camera_pose_visual_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("~/camera_pose_visual", 1000);
+        pub_key_odometrys_ = this->create_publisher<visualization_msgs::msg::Marker>("~/key_odometrys", 1000);
+        pub_vio_path_ = this->create_publisher<nav_msgs::msg::Path>("~/no_loop_path", 1000);
     }
 
     void startThreads()

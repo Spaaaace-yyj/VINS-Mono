@@ -39,19 +39,20 @@ Visualization::Visualization(rclcpp::Node *node)
 
 void Visualization::registerPub(rclcpp::Node *node)
 {
-    pub_latest_odometry_ = node->create_publisher<nav_msgs::msg::Odometry>("imu_propagate", 1000);
-    pub_path_ = node->create_publisher<nav_msgs::msg::Path>("path", 1000);
-    pub_relo_path_ = node->create_publisher<nav_msgs::msg::Path>("relocalization_path", 1000);
-    pub_odometry_ = node->create_publisher<nav_msgs::msg::Odometry>("odometry", 1000);
-    pub_point_cloud_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("point_cloud", 1000);
-    pub_margin_cloud_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("history_cloud", 1000);
-    pub_key_poses_ = node->create_publisher<visualization_msgs::msg::Marker>("key_poses", 1000);
-    pub_camera_pose_ = node->create_publisher<nav_msgs::msg::Odometry>("camera_pose", 1000);
-    pub_camera_pose_visual_ = node->create_publisher<visualization_msgs::msg::MarkerArray>("camera_pose_visual", 1000);
-    pub_keyframe_pose_ = node->create_publisher<nav_msgs::msg::Odometry>("keyframe_pose", 1000);
-    pub_keyframe_point_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("keyframe_point", 1000);
-    pub_extrinsic_ = node->create_publisher<nav_msgs::msg::Odometry>("extrinsic", 1000);
-    pub_relo_relative_pose_ = node->create_publisher<nav_msgs::msg::Odometry>("relo_relative_pose", 1000);
+    // Preserve the ROS 1 private-node topic layout under /vins_estimator/*.
+    pub_latest_odometry_ = node->create_publisher<nav_msgs::msg::Odometry>("~/imu_propagate", 1000);
+    pub_path_ = node->create_publisher<nav_msgs::msg::Path>("~/path", 1000);
+    pub_relo_path_ = node->create_publisher<nav_msgs::msg::Path>("~/relocalization_path", 1000);
+    pub_odometry_ = node->create_publisher<nav_msgs::msg::Odometry>("~/odometry", 1000);
+    pub_point_cloud_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("~/point_cloud", 1000);
+    pub_margin_cloud_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("~/history_cloud", 1000);
+    pub_key_poses_ = node->create_publisher<visualization_msgs::msg::Marker>("~/key_poses", 1000);
+    pub_camera_pose_ = node->create_publisher<nav_msgs::msg::Odometry>("~/camera_pose", 1000);
+    pub_camera_pose_visual_ = node->create_publisher<visualization_msgs::msg::MarkerArray>("~/camera_pose_visual", 1000);
+    pub_keyframe_pose_ = node->create_publisher<nav_msgs::msg::Odometry>("~/keyframe_pose", 1000);
+    pub_keyframe_point_ = node->create_publisher<sensor_msgs::msg::PointCloud2>("~/keyframe_point", 1000);
+    pub_extrinsic_ = node->create_publisher<nav_msgs::msg::Odometry>("~/extrinsic", 1000);
+    pub_relo_relative_pose_ = node->create_publisher<nav_msgs::msg::Odometry>("~/relo_relative_pose", 1000);
 
     br_ = std::make_unique<tf2_ros::TransformBroadcaster>(node);
 
@@ -128,7 +129,7 @@ void Visualization::pubOdometry(const Estimator &estimator, const std_msgs::msg:
         nav_msgs::msg::Odometry odometry;
         odometry.header = header;
         odometry.header.frame_id = "world";
-        odometry.child_frame_id = "world";
+        odometry.child_frame_id = "body";
         Quaterniond tmp_Q;
         tmp_Q = Quaterniond(estimator.Rs[WINDOW_SIZE]);
         odometry.pose.pose.position.x = estimator.Ps[WINDOW_SIZE].x();

@@ -5,11 +5,16 @@
   <version>0.0.0</version>
   <description>Augmented reality demo rendering axes and cubes over the VINS odometry</description>
   <maintainer email="qintonguav@gmail.com">tony-ws</maintainer>
-  <license>TODO</license>
+  <license>GPL-3.0-or-later</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <depend>rclcpp</depend>
+  <depend>builtin_interfaces</depend>
+
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>

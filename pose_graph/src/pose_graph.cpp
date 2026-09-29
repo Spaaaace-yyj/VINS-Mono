@@ -35,13 +35,13 @@ PoseGraph::~PoseGraph()
 
 void PoseGraph::registerPub(rclcpp::Node *node)
 {
-    pub_pg_path = node->create_publisher<nav_msgs::msg::Path>("pose_graph_path", 1000);
-    pub_base_path = node->create_publisher<nav_msgs::msg::Path>("base_path", 1000);
-    pub_pose_graph = node->create_publisher<visualization_msgs::msg::MarkerArray>("pose_graph", 1000);
+    pub_pg_path = node->create_publisher<nav_msgs::msg::Path>("~/pose_graph_path", 1000);
+    pub_base_path = node->create_publisher<nav_msgs::msg::Path>("~/base_path", 1000);
+    pub_pose_graph = node->create_publisher<visualization_msgs::msg::MarkerArray>("~/pose_graph", 1000);
     for (int i = 1; i < 10; i++)
-        pub_path[i] = node->create_publisher<nav_msgs::msg::Path>("path_" + to_string(i), 1000);
-    pub_match_img = node->create_publisher<sensor_msgs::msg::Image>("match_image", 1000);
-    pub_match_points = node->create_publisher<sensor_msgs::msg::PointCloud2>("match_points", 100);
+        pub_path[i] = node->create_publisher<nav_msgs::msg::Path>("~/path_" + to_string(i), 1000);
+    pub_match_img = node->create_publisher<sensor_msgs::msg::Image>("~/match_image", 1000);
+    pub_match_points = node->create_publisher<sensor_msgs::msg::PointCloud2>("~/match_points", 100);
 }
 
 void PoseGraph::loadVocabulary(std::string voc_path)

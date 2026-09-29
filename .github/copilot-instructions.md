@@ -1,27 +1,31 @@
-# Copilot Instructions for VINS-Mono
+# Copilot Instructions for VINS-Mono ROS 2
 
-VINS-Mono is a ROS-based monocular visual-inertial SLAM system (sliding-window VIO + loop closure + pose graph). C++11, catkin build system.
+VINS-Mono is a ROS 2 Humble monocular visual-inertial SLAM system (sliding-window VIO + loop closure + pose graph). It uses C++14, ament_cmake and colcon.
 
 ## Build / Test / Lint
 
-This is a ROS catkin workspace package. Build from a catkin workspace, not the repo root directly:
+Build it from a ROS 2 workspace:
 
 ```bash
-cd ~/catkin_ws/src && git clone <this-repo> .  # or symlink
-cd ~/catkin_ws && catkin_make
-source ~/catkin_ws/devel/setup.bash
+mkdir -p ~/vins_ws/src
+cd ~/vins_ws/src && git clone <this-repo>
+cd ~/vins_ws
+source /opt/ros/humble/setup.bash
+rosdep install --from-paths src --ignore-src -r -y
+colcon build --symlink-install
+source install/setup.bash
 ```
 
-- Build a single package: `catkin_make --pkg vins_estimator` (also `pose_graph`, `feature_tracker`, `camera_model`, `ar_demo`, `benchmark_publisher`, `data_generator`)
-- **Ceres Solver must be 1.14.x** — compilation breaks on Ceres 2.0+. Do not bump it.
+- Build selected packages: `colcon build --packages-up-to vins_estimator pose_graph`.
+- Ubuntu 22.04's Ceres 2.x is supported. Do not reintroduce ROS 1 `LocalParameterization` assumptions without checking the current port.
 - There are **no unit tests and no lint config**. Verification is manual: launch a node, play a rosbag, inspect RViz and console output.
-- Docker build alternative: `cd docker && make build && ./run.sh euroc.launch`
+- Launch files used by ROS 2 have the `.launch.py` suffix. Legacy ROS 1 XML launch files are retained only as reference.
 
 ## High-Level Architecture
 
 The system is three cooperating ROS nodes plus a camera model library:
 
-1. **`feature_tracker`** (`feature_tracker_node.cpp`) — KLT optical-flow frontend. Tracks features frame-to-frame and publishes them as `sensor_msgs::PointCloud` on `/feature_tracker/feature` (plus `/feature_tracker/feature_img` for visualization and `/feature_tracker/restart`).
+1. **`feature_tracker`** (`feature_tracker_node.cpp`) — KLT optical-flow frontend. Tracks features frame-to-frame and publishes them as `sensor_msgs::msg::PointCloud2` on `/feature_tracker/feature` (plus `/feature_tracker/feature_img` for visualization and `/feature_tracker/restart`).
 
 2. **`vins_estimator`** (`estimator_node.cpp`, `Estimator` in `estimator.{h,cpp}`) — the core VIO backend. Runs a sliding-window nonlinear optimization (Ceres) with IMU pre-integration. Key phases: estimator initialization (`initial/`, using 5-point + SFM + visual-inertial alignment), then `solveOdometry()`/`optimization()` with marginalization (`factor/marginalization_factor.cpp`). The node runs two loops: a high-frequency `predict()` (IMU forward propagation) and the `process()` thread that consumes synchronized IMU+feature pairs.
 
@@ -33,10 +37,10 @@ Data flow: camera + IMU topics → `feature_tracker` → `/feature_tracker/featu
 
 ## Key Conventions
 
-- **Config drives everything.** Each `config/<dataset>/*.yaml` is loaded by a matching launch file in `vins_estimator/launch/`. Parameters are read via `readParameters(ros::NodeHandle&)` into global `extern` variables declared in `vins_estimator/src/parameters.h` and `pose_graph/src/parameters.h`. Adding a tunable almost always means: add it to the YAML, declare an `extern`, read it in `parameters.cpp`.
+- **Config drives everything.** YAML paths are passed as ROS 2 parameters and read with OpenCV `FileStorage`. Parameters are read via `readParameters(rclcpp::Node*)` into global `extern` variables. Adding a tunable usually means updating the YAML and the corresponding parameter reader.
 - **Hardcoded constants live in `vins_estimator/src/parameters.h`** — `WINDOW_SIZE` (10), `NUM_OF_F` (1000), `NUM_OF_CAM` (1), `FOCAL_LENGTH` (460). The code is effectively mono-only despite the `NUM_OF_CAM` indirection.
-- **Inter-node feature encoding.** Features are passed as a `sensor_msgs::PointCloud` where `z == 1` and the channels carry `feature_id*NUM_OF_CAM + camera_id`, `p_u`, `p_v`, velocity_x, velocity_y. See `feature_callback`/`process()` in `estimator_node.cpp` for the decode side.
+- **Inter-node feature encoding.** Features are passed as `sensor_msgs::msg::PointCloud2` with eight float fields: `x`, `y`, `z`, `id`, `u`, `v`, `velocity_x`, `velocity_y`.
 - **Eigen aliases** `Vector3d`, `Matrix3d`, `Quaterniond` are defined in `vins_estimator/src/utility/utility.h`; `TicToc` (timing) lives in `utility/tic_toc.h`.
 - **Naming style** mirrors the upstream HKUST code: `snake_case` files, camelCase methods, globals are SCREAMING_SNAKE. Keep style consistent rather than modernizing.
-- **ROS topic names are private-relative** — nodes use `ros::NodeHandle("~")` for params, so topics are resolved under the node namespace (`/vins_estimator/...`, `/feature_tracker/...`, `/pose_graph/...`).
+- **ROS topic names are private-relative** — use explicit ROS 2 `~/...` names for node-owned outputs so they resolve under the node name (`/vins_estimator/...`, `/feature_tracker/...`, `/pose_graph/...`). Raw image and IMU subscriptions use `rclcpp::SensorDataQoS()`.
 - **No `using namespace std`** at file scope in the core; `std::` is usually explicit, but `Eigen` types are often unqualified via the aliases above.

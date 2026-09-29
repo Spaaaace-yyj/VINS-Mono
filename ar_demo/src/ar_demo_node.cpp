@@ -49,7 +49,7 @@ class ARDemoNode : public rclcpp::Node
             ROW_ = 600;
             COL_ = 480;
             FOCAL_LENGTH_ = 320.0;
-            sub_img_ = create_subscription<sensor_msgs::msg::Image>("image_undistored", 100,
+            sub_img_ = create_subscription<sensor_msgs::msg::Image>("image_undistored", rclcpp::SensorDataQoS(),
                 std::bind(&ARDemoNode::img_callback, this, std::placeholders::_1));
         }
         else
@@ -57,7 +57,7 @@ class ARDemoNode : public rclcpp::Node
             ROW_ = 752;
             COL_ = 480;
             FOCAL_LENGTH_ = 460.0;
-            sub_img_ = create_subscription<sensor_msgs::msg::Image>("image_raw", 100,
+            sub_img_ = create_subscription<sensor_msgs::msg::Image>("image_raw", rclcpp::SensorDataQoS(),
                 std::bind(&ARDemoNode::img_callback, this, std::placeholders::_1));
         }
 

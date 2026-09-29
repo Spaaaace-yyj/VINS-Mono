@@ -14,6 +14,8 @@ def generate_launch_description():
     config_file = LaunchConfiguration('config_file')
     vins_folder = LaunchConfiguration('vins_folder')
     use_rviz = LaunchConfiguration('use_rviz')
+    use_pose_graph = LaunchConfiguration('use_pose_graph')
+    use_sim_time = LaunchConfiguration('use_sim_time')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -28,6 +30,14 @@ def generate_launch_description():
             'use_rviz',
             default_value='true',
             description='Launch RViz2 for visualization'),
+        DeclareLaunchArgument(
+            'use_pose_graph',
+            default_value='true',
+            description='Launch the loop-closure pose graph node'),
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='true',
+            description='Use /clock (enable this when playing a bag with --clock)'),
 
         Node(
             package='feature_tracker',
@@ -37,6 +47,7 @@ def generate_launch_description():
             parameters=[{
                 'config_file': config_file,
                 'vins_folder': vins_folder,
+                'use_sim_time': use_sim_time,
             }],
         ),
 
@@ -47,6 +58,7 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'config_file': config_file,
+                'use_sim_time': use_sim_time,
             }],
         ),
 
@@ -61,7 +73,9 @@ def generate_launch_description():
                 'visualization_shift_y': 0,
                 'skip_cnt': 0,
                 'skip_dis': 0.0,
+                'use_sim_time': use_sim_time,
             }],
+            condition=IfCondition(use_pose_graph),
         ),
 
         Node(
@@ -69,6 +83,7 @@ def generate_launch_description():
             executable='rviz2',
             name='rviz2',
             arguments=['-d', os.path.join(pkg_dir, 'config', 'vins_rviz2_config.rviz')],
+            parameters=[{'use_sim_time': use_sim_time}],
             condition=IfCondition(use_rviz),
         ),
     ])

@@ -56,17 +56,17 @@ class DataGeneratorNode : public rclcpp::Node
   public:
     DataGeneratorNode() : Node("data_generator")
     {
-        pub_imu_ = create_publisher<sensor_msgs::msg::Imu>("imu", 1000);
+        pub_imu_ = create_publisher<sensor_msgs::msg::Imu>("~/imu", rclcpp::SensorDataQoS());
         pub_feature_ = create_publisher<sensor_msgs::msg::PointCloud2>("/feature_tracker/feature", 1000);
-        pub_wifi_ = create_publisher<sensor_msgs::msg::PointCloud2>("wifi", 1000);
-        pub_flow_ = create_publisher<nav_msgs::msg::Odometry>("flow", 1000);
-        pub_path_ = create_publisher<nav_msgs::msg::Path>("path", 1000);
-        pub_odometry_ = create_publisher<nav_msgs::msg::Odometry>("odometry", 1000);
-        pub_pose_ = create_publisher<geometry_msgs::msg::PoseStamped>("pose", 1000);
-        pub_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>("cloud", 1000);
-        pub_ap_ = create_publisher<sensor_msgs::msg::PointCloud2>("ap", 1000);
-        pub_line_ = create_publisher<visualization_msgs::msg::Marker>("sar", 1000);
-        pub_image_ = create_publisher<sensor_msgs::msg::Image>("tracked_image", 1000);
+        pub_wifi_ = create_publisher<sensor_msgs::msg::PointCloud2>("~/wifi", 1000);
+        pub_flow_ = create_publisher<nav_msgs::msg::Odometry>("~/flow", 1000);
+        pub_path_ = create_publisher<nav_msgs::msg::Path>("~/path", 1000);
+        pub_odometry_ = create_publisher<nav_msgs::msg::Odometry>("~/odometry", 1000);
+        pub_pose_ = create_publisher<geometry_msgs::msg::PoseStamped>("~/pose", 1000);
+        pub_cloud_ = create_publisher<sensor_msgs::msg::PointCloud2>("~/cloud", 1000);
+        pub_ap_ = create_publisher<sensor_msgs::msg::PointCloud2>("~/ap", 1000);
+        pub_line_ = create_publisher<visualization_msgs::msg::Marker>("~/sar", 1000);
+        pub_image_ = create_publisher<sensor_msgs::msg::Image>("~/image", rclcpp::SensorDataQoS());
     }
 
     void run()
@@ -224,15 +224,16 @@ class DataGeneratorNode : public rclcpp::Node
                 RCLCPP_INFO(get_logger(), "feature count: %lu", image.size());
 
                 sensor_msgs::msg::PointCloud2 feature;
-                initCloud(feature, "world", image.size(), 7);
+                initCloud(feature, "world", image.size(), 8);
                 feature.header.stamp = stampFromDouble(current_time);
                 addField(feature, 0, "x");
                 addField(feature, 1, "y");
                 addField(feature, 2, "z");
                 addField(feature, 3, "id");
-                addField(feature, 4, "p_x");
-                addField(feature, 5, "p_y");
-                addField(feature, 6, "p_z");
+                addField(feature, 4, "u");
+                addField(feature, 5, "v");
+                addField(feature, 6, "velocity_x");
+                addField(feature, 7, "velocity_y");
 
                 cv::Mat simu_img[DataGenerator::NUMBER_OF_CAMERA];
                 for (int i = 0; i < DataGenerator::NUMBER_OF_CAMERA; i++)
@@ -247,9 +248,10 @@ class DataGeneratorNode : public rclcpp::Node
                     p[1] = id_pts.second(1);
                     p[2] = id_pts.second(2);
                     p[3] = id;
-                    p[4] = generator.output_gr_pts[tmp_idx].x();
-                    p[5] = generator.output_gr_pts[tmp_idx].y();
-                    p[6] = generator.output_gr_pts[tmp_idx].z();
+                    p[4] = static_cast<float>((p[0] + 1.0) * 300.0);
+                    p[5] = static_cast<float>((p[1] + 1.0) * 300.0);
+                    p[6] = 0.0f;
+                    p[7] = 0.0f;
                     tmp_idx++;
 
                     char label[10];
