@@ -2,7 +2,7 @@
 
 #common parameters
 imu_topic: "/px4/imu"
-image_topic: "/image_raw"
+image_topic: "/image_gray"
 output_path: "/tmp/vins_output/"
 
 #camera calibration 
