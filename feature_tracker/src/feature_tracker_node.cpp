@@ -11,14 +11,14 @@
 
 #define SHOW_UNDISTORTION 0
 
-inline double stampToSec(const builtin_interfaces::msg::Time &t)
+inline double stampToSec(const builtin_interfaces::msg::Time& t)
 {
     return static_cast<double>(t.sec) + static_cast<double>(t.nanosec) * 1e-9;
 }
 
 class FeatureTrackerNode : public rclcpp::Node
 {
-  public:
+public:
     FeatureTrackerNode()
         : Node("feature_tracker"),
           first_image_time_(0.0),
@@ -62,7 +62,7 @@ class FeatureTrackerNode : public rclcpp::Node
         pub_restart_ = this->create_publisher<std_msgs::msg::Bool>("~/restart", 1000);
     }
 
-  private:
+private:
     void img_callback(const sensor_msgs::msg::Image::SharedPtr img_msg)
     {
         if (first_image_flag_)
@@ -160,10 +160,10 @@ class FeatureTrackerNode : public rclcpp::Node
             std::vector<std::set<int>> hash_ids(NUM_OF_CAM);
             for (int i = 0; i < NUM_OF_CAM; i++)
             {
-                auto &un_pts = trackerData_[i].cur_un_pts;
-                auto &cur_pts = trackerData_[i].cur_pts;
-                auto &pt_ids = trackerData_[i].ids;
-                auto &pts_velocity = trackerData_[i].pts_velocity;
+                auto& un_pts = trackerData_[i].cur_un_pts;
+                auto& cur_pts = trackerData_[i].cur_pts;
+                auto& pt_ids = trackerData_[i].ids;
+                auto& pts_velocity = trackerData_[i].pts_velocity;
                 for (unsigned int j = 0; j < pt_ids.size(); j++)
                 {
                     if (trackerData_[i].track_cnt[j] > 1)
@@ -210,10 +210,10 @@ class FeatureTrackerNode : public rclcpp::Node
             feature_points.fields[7].name = "velocity_y";
 
             feature_points.data.resize(xs.size() * feature_points.point_step);
-            uint8_t *data_ptr = feature_points.data.data();
+            uint8_t* data_ptr = feature_points.data.data();
             for (size_t j = 0; j < xs.size(); j++)
             {
-                float *p = reinterpret_cast<float *>(data_ptr + j * feature_points.point_step);
+                float* p = reinterpret_cast<float*>(data_ptr + j * feature_points.point_step);
                 p[0] = xs[j];
                 p[1] = ys[j];
                 p[2] = zs[j];
@@ -269,7 +269,7 @@ class FeatureTrackerNode : public rclcpp::Node
     bool init_pub_;
 };
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     rclcpp::init(argc, argv);
     rclcpp::spin(std::make_shared<FeatureTrackerNode>());

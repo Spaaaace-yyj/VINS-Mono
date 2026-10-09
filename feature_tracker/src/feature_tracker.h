@@ -20,17 +20,17 @@ using namespace std;
 using namespace camodocal;
 using namespace Eigen;
 
-bool inBorder(const cv::Point2f &pt);
+bool inBorder(const cv::Point2f& pt);
 
-void reduceVector(vector<cv::Point2f> &v, vector<uchar> status);
-void reduceVector(vector<int> &v, vector<uchar> status);
+void reduceVector(vector<cv::Point2f>& v, vector<uchar> status);
+void reduceVector(vector<int>& v, vector<uchar> status);
 
 class FeatureTracker
 {
-  public:
+public:
     FeatureTracker();
 
-    void readImage(const cv::Mat &_img,double _cur_time);
+    void readImage(const cv::Mat& _img, double _cur_time);
 
     void setMask();
 
@@ -38,9 +38,9 @@ class FeatureTracker
 
     bool updateID(unsigned int i);
 
-    void readIntrinsicParameter(const string &calib_file);
+    void readIntrinsicParameter(const string& calib_file);
 
-    void showUndistortion(const string &name);
+    void showUndistortion(const string& name);
 
     void rejectWithF();
 

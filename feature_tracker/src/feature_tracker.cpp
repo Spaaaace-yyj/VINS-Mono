@@ -2,7 +2,7 @@
 
 int FeatureTracker::n_id = 0;
 
-bool inBorder(const cv::Point2f &pt)
+bool inBorder(const cv::Point2f& pt)
 {
     const int BORDER_SIZE = 1;
     int img_x = cvRound(pt.x);
@@ -10,7 +10,7 @@ bool inBorder(const cv::Point2f &pt)
     return BORDER_SIZE <= img_x && img_x < COL - BORDER_SIZE && BORDER_SIZE <= img_y && img_y < ROW - BORDER_SIZE;
 }
 
-void reduceVector(vector<cv::Point2f> &v, vector<uchar> status)
+void reduceVector(vector<cv::Point2f>& v, vector<uchar> status)
 {
     int j = 0;
     for (int i = 0; i < int(v.size()); i++)
@@ -19,7 +19,7 @@ void reduceVector(vector<cv::Point2f> &v, vector<uchar> status)
     v.resize(j);
 }
 
-void reduceVector(vector<int> &v, vector<uchar> status)
+void reduceVector(vector<int>& v, vector<uchar> status)
 {
     int j = 0;
     for (int i = 0; i < int(v.size()); i++)
@@ -35,11 +35,11 @@ FeatureTracker::FeatureTracker()
 
 void FeatureTracker::setMask()
 {
-    if(FISHEYE)
+    if (FISHEYE)
         mask = fisheye_mask.clone();
     else
         mask = cv::Mat(ROW, COL, CV_8UC1, cv::Scalar(255));
-    
+
 
     // prefer to keep features that are tracked for long time
     vector<pair<int, pair<cv::Point2f, int>>> cnt_pts_id;
@@ -47,16 +47,17 @@ void FeatureTracker::setMask()
     for (unsigned int i = 0; i < forw_pts.size(); i++)
         cnt_pts_id.push_back(make_pair(track_cnt[i], make_pair(forw_pts[i], ids[i])));
 
-    sort(cnt_pts_id.begin(), cnt_pts_id.end(), [](const pair<int, pair<cv::Point2f, int>> &a, const pair<int, pair<cv::Point2f, int>> &b)
+    sort(cnt_pts_id.begin(), cnt_pts_id.end(),
+         [](const pair<int, pair<cv::Point2f, int>>& a, const pair<int, pair<cv::Point2f, int>>& b)
          {
-            return a.first > b.first;
+             return a.first > b.first;
          });
 
     forw_pts.clear();
     ids.clear();
     track_cnt.clear();
 
-    for (auto &it : cnt_pts_id)
+    for (auto& it : cnt_pts_id)
     {
         if (mask.at<uchar>(it.second.first) == 255)
         {
@@ -70,7 +71,7 @@ void FeatureTracker::setMask()
 
 void FeatureTracker::addPoints()
 {
-    for (auto &p : n_pts)
+    for (auto& p : n_pts)
     {
         forw_pts.push_back(p);
         ids.push_back(-1);
@@ -78,7 +79,7 @@ void FeatureTracker::addPoints()
     }
 }
 
-void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
+void FeatureTracker::readImage(const cv::Mat& _img, double _cur_time)
 {
     cv::Mat img;
     TicToc t_r;
@@ -124,7 +125,7 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
         RCLCPP_DEBUG(rclcpp::get_logger("feature_tracker"), "temporal optical flow costs: %fms", t_o.toc());
     }
 
-    for (auto &n : track_cnt)
+    for (auto& n : track_cnt)
         n++;
 
     if (PUB_THIS_FRAME)
@@ -140,7 +141,7 @@ void FeatureTracker::readImage(const cv::Mat &_img, double _cur_time)
         int n_max_cnt = MAX_CNT - static_cast<int>(forw_pts.size());
         if (n_max_cnt > 0)
         {
-            if(mask.empty())
+            if (mask.empty())
                 cout << "mask is empty " << endl;
             if (mask.type() != CV_8UC1)
                 cout << "mask type wrong " << endl;
@@ -196,7 +197,8 @@ void FeatureTracker::rejectWithF()
         reduceVector(cur_un_pts, status);
         reduceVector(ids, status);
         reduceVector(track_cnt, status);
-        RCLCPP_DEBUG(rclcpp::get_logger("feature_tracker"), "FM ransac: %d -> %lu: %f", size_a, forw_pts.size(), 1.0 * forw_pts.size() / size_a);
+        RCLCPP_DEBUG(rclcpp::get_logger("feature_tracker"), "FM ransac: %d -> %lu: %f", size_a, forw_pts.size(),
+                     1.0 * forw_pts.size() / size_a);
         RCLCPP_DEBUG(rclcpp::get_logger("feature_tracker"), "FM ransac costs: %fms", t_f.toc());
     }
 }
@@ -213,13 +215,13 @@ bool FeatureTracker::updateID(unsigned int i)
         return false;
 }
 
-void FeatureTracker::readIntrinsicParameter(const string &calib_file)
+void FeatureTracker::readIntrinsicParameter(const string& calib_file)
 {
     RCLCPP_INFO(rclcpp::get_logger("feature_tracker"), "reading paramerter of camera %s", calib_file.c_str());
     m_camera = CameraFactory::instance()->generateCameraFromYamlFile(calib_file);
 }
 
-void FeatureTracker::showUndistortion(const string &name)
+void FeatureTracker::showUndistortion(const string& name)
 {
     cv::Mat undistortedImg(ROW + 600, COL + 600, CV_8UC1, cv::Scalar(0));
     vector<Eigen::Vector2d> distortedp, undistortedp;
@@ -242,9 +244,11 @@ void FeatureTracker::showUndistortion(const string &name)
         //cout << trackerData[0].K << endl;
         //printf("%lf %lf\n", p.at<float>(1, 0), p.at<float>(0, 0));
         //printf("%lf %lf\n", pp.at<float>(1, 0), pp.at<float>(0, 0));
-        if (pp.at<float>(1, 0) + 300 >= 0 && pp.at<float>(1, 0) + 300 < ROW + 600 && pp.at<float>(0, 0) + 300 >= 0 && pp.at<float>(0, 0) + 300 < COL + 600)
+        if (pp.at<float>(1, 0) + 300 >= 0 && pp.at<float>(1, 0) + 300 < ROW + 600 && pp.at<float>(0, 0) + 300 >= 0 && pp
+            .at<float>(0, 0) + 300 < COL + 600)
         {
-            undistortedImg.at<uchar>(pp.at<float>(1, 0) + 300, pp.at<float>(0, 0) + 300) = cur_img.at<uchar>(distortedp[i].y(), distortedp[i].x());
+            undistortedImg.at<uchar>(pp.at<float>(1, 0) + 300, pp.at<float>(0, 0) + 300) = cur_img.at<uchar>(
+                distortedp[i].y(), distortedp[i].x());
         }
         else
         {

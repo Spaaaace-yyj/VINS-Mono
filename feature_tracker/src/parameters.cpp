@@ -19,7 +19,7 @@ int FISHEYE;
 bool PUB_THIS_FRAME;
 
 template <typename T>
-T readParam(rclcpp::Node *node, std::string name)
+T readParam(rclcpp::Node* node, std::string name)
 {
     T ans;
     if (node->get_parameter(name, ans))
@@ -34,12 +34,12 @@ T readParam(rclcpp::Node *node, std::string name)
     return ans;
 }
 
-void readParameters(rclcpp::Node *node)
+void readParameters(rclcpp::Node* node)
 {
     std::string config_file;
     config_file = readParam<std::string>(node, "config_file");
     cv::FileStorage fsSettings(config_file, cv::FileStorage::READ);
-    if(!fsSettings.isOpened())
+    if (!fsSettings.isOpened())
     {
         std::cerr << "ERROR: Wrong path to settings" << std::endl;
     }
@@ -69,6 +69,4 @@ void readParameters(rclcpp::Node *node)
         FREQ = 100;
 
     fsSettings.release();
-
-
 }
